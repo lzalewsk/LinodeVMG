@@ -43,3 +43,11 @@ dashboards:
 
 service:
   type: LoadBalancer
+
+persistence:
+  type: pvc
+  enabled: true
+  storageClassName: linode-block-storage
+  accessModes:
+    - ReadWriteOnce
+  size: 10Gi

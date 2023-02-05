@@ -171,6 +171,13 @@ def wait_for_all_pods_running(namespace="kube-system"):
             sleep(10)
 
 
+def define_vm_helm_repo():
+    helm_cmd = "helm repo add vm https://victoriametrics.github.io/helm-charts/"
+    subprocess.run(str.split(helm_cmd))
+    helm_cmd = "helm repo update"
+    subprocess.run(str.split(helm_cmd))
+
+
 def vmoperator_deploy():
     helm_cmd = """helm install vmoperator vm/victoria-metrics-operator
                 -n victoriametrics --create-namespace\
@@ -267,6 +274,7 @@ if __name__ == '__main__':
     if args.create:
         print('Starting LKE + VM + Grafana ....')
         create_lke(linode_client)
+        define_vm_helm_repo()
         vmoperator_deploy()
         vmcluster_deploy()
         vmagent_deploy()
