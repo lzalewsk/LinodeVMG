@@ -19,15 +19,16 @@ LKE_LABEL        = cfg.get('LKE', 'LABEL')
 TARGET_REGION    = cfg.get('LKE', 'REGION')
 KUBE_CONFIG_PATH = cfg.get('local', 'KUBE_CONFIG_PATH')
 
-#
-
-
+# -------------------------------------------------------
+# Methods for LKE cluster manipulation
 def check_if_lke_cluster_exists(ln_client, tags):
     """
+    This methods check if in particular Linode Account (via Linode Client) exists LKE
+    cluster with provided tags.
 
-    :param ln_client:
-    :param tags:
-    :return:
+    :param ln_client: Linode Client object (handler)
+    :param tags: list of tag strings
+    :return: True if LKE instance exists, False in other cases.
     """
     instances = ln_client.lke.clusters()
     lke_exist = False
@@ -40,9 +41,11 @@ def check_if_lke_cluster_exists(ln_client, tags):
 
 def create_lke(ln_client):
     """
+    Creates LKE instancje if not exists.
+    Verification of cluster existence existence is based on TAGs.
 
-    :param ln_client:
-    :return:
+    :param ln_client: Linode Client object (handler)
+    :return: None
     """
 
     # look up Region and Types to use.  In this example I'm just using
@@ -74,47 +77,19 @@ def create_lke(ln_client):
     else:
         print(f'LKE with tags: {TAGS} exists')
 
-    check_status(ln_client)
+    check_lke_node_status(ln_client)
     get_lke_kubeconfig(ln_client)
     wait_for_all_pods_running()
 
 
-def get_lke_kubeconfig(ln_client):
+def check_lke_node_status(ln_client):
     """
+    This method check status af all nodes within LKE instance
+    and waits until all nodes not become 'ready'.
 
-    :param ln_client:
-    :return:
+    :param ln_client: Linode Client object (handler)
+    :return: None
     """
-    instances = ln_client.lke.clusters()
-
-    print('get LKE kubeconfoig')
-    for instance in instances:
-        if instance.tags <= TAGS:
-            # write this config out to disk
-            kubeconfig_ready = False
-            while not kubeconfig_ready:
-                try:
-                    kconfig = instance.kubeconfig
-                    yaml_config = base64.b64decode(kconfig)
-                    with open("kubeconfig.yaml", "w") as f:
-                        f.write(yaml_config.decode())
-                        kubeconfig_ready = True
-                except Exception as e:
-                    print(e)
-                sleep(10)
-            os.environ["KUBECONFIG"] = os.path.join(os.getcwd(), 'kubeconfig.yaml')
-
-
-def del_lke_cluster(ln_client):
-    instances = ln_client.lke.clusters()
-
-    for instance in instances:
-        print(instance)
-        if instance.tags <= TAGS:
-            instance.delete()
-
-
-def check_status(ln_client):
     instances = ln_client.lke.clusters()
 
     for instance in instances:
@@ -140,12 +115,56 @@ def check_status(ln_client):
     print('K8s cluster stable')
 
 
-def wait_for_all_pods_running(namespace="kube-system"):
+def get_lke_kubeconfig(ln_client):
     """
-    Metoda sprawdza status wszystkich podów w ramach danego namespac'u
-    Czeka w pętli do momentu aż wszystkie pody uzyskają status Running
+    Get LKE Kubeconfig file content if it's provided.
+    If not -  wait 10s.
+
+    :param ln_client: Linode Client object (handler)
+    :return: None
+    """
+    instances = ln_client.lke.clusters()
+
+    print('get LKE kubeconfig')
+    for instance in instances:
+        if instance.tags <= TAGS:
+            # write this config out to disk
+            kubeconfig_ready = False
+            while not kubeconfig_ready:
+                try:
+                    kconfig = instance.kubeconfig
+                    yaml_config = base64.b64decode(kconfig)
+                    with open("kubeconfig.yaml", "w") as f:
+                        f.write(yaml_config.decode())
+                        kubeconfig_ready = True
+                except Exception as e:
+                    print(e)
+                sleep(10)
+            os.environ["KUBECONFIG"] = os.path.join(os.getcwd(), 'kubeconfig.yaml')
+
+
+def del_lke_cluster(ln_client):
+    """
+    Deletes LKE cluster with gloably provided TAGs
+
+    :param ln_client: Linode Client object (handler)
+    :return: None
+    """
+    instances = ln_client.lke.clusters()
+
+    for instance in instances:
+        print(instance)
+        if instance.tags <= TAGS:
+            instance.delete()
+
+
+def wait_for_all_pods_running(namespace ="kube-system"):
+    """
+    This method checks status of all pods within provided namespace witin K8s
+    waits until all pods not become 'Running'.
+
     :param namespace:
-    :return:
+    :return: None
     """
     config.load_kube_config(config_file=os.environ.get("KUBECONFIG", KUBE_CONFIG_PATH))
     k8s_api = client.CoreV1Api()
@@ -170,6 +189,10 @@ def wait_for_all_pods_running(namespace="kube-system"):
         else:
             sleep(10)
 
+
+# -------------------------------------------------------
+# Simple set of commands with using of helm and kubectl
+# for application (VM + Grafana) manipulation within K8S
 
 def define_vm_helm_repo():
     helm_cmd = "helm repo add vm https://victoriametrics.github.io/helm-charts/"
@@ -248,6 +271,7 @@ def grafana_deploy():
 def clear_k8s_env():
     """
     K8s environment cleaning to remove resources like Volumes and NodeBalancers from Linode.
+
     :return:
     """
     helm_cmd = "helm delete -n grafana grafana"
@@ -282,7 +306,7 @@ if __name__ == '__main__':
 
     if args.delete:
         print('Buuu.....')
-        check_status(linode_client)
+        check_lke_node_status(linode_client)
         get_lke_kubeconfig(linode_client)
         clear_k8s_env()
         del_lke_cluster(linode_client)
